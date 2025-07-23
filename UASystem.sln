@@ -9,6 +9,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UASystem.Api.Application", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UASystem.Api.Infrastructure", "UASystem.Api.Infrastructure\UASystem.Api.Infrastructure.csproj", "{8B6F5AFA-99D0-4471-88DF-D36E02ABDBA8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UASystem.Api.Domain", "UASystem.Api.Domain\UASystem.Api.Domain.csproj", "{F1B92E89-0309-4AC0-AD41-C1BE753810DB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UASystem.Api.Application.UnitTests", "UASystem.Api.Application.UnitTests\UASystem.Api.Application.UnitTests.csproj", "{073784CD-DFB1-4E4D-B074-4365C90A86C3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UASystem.Api.Domain.UnitTests", "UASystem.Api.Domain.UnitTests\UASystem.Api.Domain.UnitTests.csproj", "{CBAE46F9-31A2-46B6-9C88-A7778F6C83E9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +33,18 @@ Global
 		{8B6F5AFA-99D0-4471-88DF-D36E02ABDBA8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8B6F5AFA-99D0-4471-88DF-D36E02ABDBA8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8B6F5AFA-99D0-4471-88DF-D36E02ABDBA8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F1B92E89-0309-4AC0-AD41-C1BE753810DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F1B92E89-0309-4AC0-AD41-C1BE753810DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F1B92E89-0309-4AC0-AD41-C1BE753810DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F1B92E89-0309-4AC0-AD41-C1BE753810DB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{073784CD-DFB1-4E4D-B074-4365C90A86C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{073784CD-DFB1-4E4D-B074-4365C90A86C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{073784CD-DFB1-4E4D-B074-4365C90A86C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{073784CD-DFB1-4E4D-B074-4365C90A86C3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBAE46F9-31A2-46B6-9C88-A7778F6C83E9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBAE46F9-31A2-46B6-9C88-A7778F6C83E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBAE46F9-31A2-46B6-9C88-A7778F6C83E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBAE46F9-31A2-46B6-9C88-A7778F6C83E9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

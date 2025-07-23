@@ -2,7 +2,10 @@ using Asp.Versioning;
 using Serilog;
 using UASystem.Api.Application.Clocking;
 using UASystem.Api.Application.ILoggingService;
+using UASystem.Api.Extensions;
 using UASystem.Api.Filters;
+using UASystem.Api.Infrastructure.Data.DataWrapperFactory;
+using UASystem.Api.Infrastructure.Data.IDataWrapperFactory;
 using UASystem.Api.Infrastructure.LoggingService;
 using UASystem.Api.Middlewares;
 
@@ -40,6 +43,11 @@ builder.Services.AddControllers(options =>
 });
 builder.Services.AddSingleton(typeof(IAppLogger<>), typeof(AppLogger<>));
 builder.Services.AddSingleton<ISystemClocking, SystemClocking>();
+builder.Services.AddSingleton<IDatabaseConnectionFactory, SqlDatabaseConnectionFactory>();
+// Add Repositories and services 
+builder.Services.AddRegistrationServices();
+
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 

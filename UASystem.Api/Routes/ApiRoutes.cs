@@ -30,6 +30,27 @@
             /// Route to get a country by its name.
             /// </summary>
             public const string ByName = "by-name/{name}";
+
+            /// <summary>
+            /// Route to get a countries by currency.
+            /// </summary>
+            public const string ByCurrency = "currency/{currencyCode}";
+        }
+
+        public static class PersonRoutes
+        {
+            /// <summary>
+            /// Route to get a person by their unique identifier.
+            /// </summary>
+            public const string ById = "{personId}";
+            /// <summary>
+            /// Route to get a person by their name.
+            /// </summary>
+            public const string ByName = "by-name/{name}";
+            /// <summary>
+            /// Route to get all persons, optionally including deleted ones.
+            /// </summary>
+            public const string All = "all";
         }
     }
 }
