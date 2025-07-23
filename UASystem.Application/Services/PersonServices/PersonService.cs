@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -89,7 +90,7 @@ namespace UASystem.Api.Application.Services.PersonServices
             var personId = query.PersonId;
             var includeDeleted = query.IncludeDeleted;
             var correlationId = query.CorrelationId;
-            var operationName = nameof(CreatePersonAsync);
+            var operationName = nameof(GetPersonByIdAsync);
             using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId } });
             _logger.LogInformation("Handling {operationame} for person with request:{@Request}.", operationName, query);
             try
@@ -127,63 +128,77 @@ namespace UASystem.Api.Application.Services.PersonServices
             }
         }
 
-        public async Task<OperationResult<UpdatedResponseDto>> UpdatePersonAsync(Guid personId, UpdatePersonDto request, Guid updatedBy, string? correlationId, CancellationToken cancellationToken)
+        public async Task<OperationResult<UpdatedResponseDto>> UpdatePersonAsync(UpdatePersonCommand command, CancellationToken cancellationToken)
         {
-            var result = await ServiceOperationHandler.ExecuteAsync<UpdatedResponseDto, PersonService>(
-                async () =>
-                {
-                    // Retrieve current person to preserve fields
-                    var person = await _personRepository.GetByIdAsync(personId, false, correlationId, cancellationToken);
-                    if (person == null)
-                    {
-                        _logger.LogWarning("Person not found for update. PersonId: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
-                        return null;
-                    }
-
-                    var oldRowVersion = person.RowVersion;
-
-                    // Create updated person object
-                    var personName = PersonName.Create(
-                        request.FirstName,
-                        request.MiddleName,
-                        request.LastName,
-                        request.Title,
-                        request.Suffix
-                    );
-
-                    person.UpdateName(personName, updatedBy);
-                    // Update person in repository
-                    var (success, newRowVersion) = await _personRepository.UpdateAsync(person, correlationId, cancellationToken);
-                    if (!success || newRowVersion == null)
-                    {
-                        _logger.LogWarning("Person update failed. PersonId: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
-                        return null;
-                    }
-
-                    var response = PersonMappers.ToUpdatedResponseDto(oldRowVersion, newRowVersion, success);
-                    _logger.LogInformation("Person updated successfully with ID: {PersonId}, NewRowVersion: {NewRowVersion}, CorrelationId: {CorrelationId}",
-                        personId, Convert.ToBase64String(newRowVersion), correlationId);
-                    return response;
-
-                },
-                _logger,
-                _errorHandlingService,
-                "UpdatePersonAsync",
-                $"Updating person with ID: {personId}",
-                correlationId,
-                cancellationToken);
-
-            if (result.IsSuccess && result.Data == null)
+            var personId = command.PersonId;
+            var correlationId = command.CorrelationId;
+            var operationName = nameof(UpdatePersonAsync);
+            using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId } });
+            _logger.LogInformation("Handling {operationame} for person with request:{@Request}.", operationName, command);
+            try
             {
-                return OperationResult<UpdatedResponseDto>.Failure(new Error(
-                    ErrorCode.ConcurrencyConflict,
-                    "CONCURRENCY_CONFLICT",
-                    $"Failed to update person with ID {personId} due to concurrency conflict or record not found.",
-                    correlationId));
+                cancellationToken.ThrowIfCancellationRequested();
+                _logger.LogDebug("Cancellation token checked. Proceeding with service.");
+
+                _logger.LogInformation("Retrieving person with ID: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
+                var person = await _personRepository.GetByIdAsync(personId, false, correlationId, cancellationToken);
+                if (person == null)
+                {
+                    _logger.LogWarning("Person not found for update. PersonId: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
+                    return OperationResult<UpdatedResponseDto>.Failure(new Error(
+                        ErrorCode.ResourceNotFound, "PERSON_NOT_FOUND",
+                        $"Person with ID {personId} not found.",
+                        correlationId));
+                }
+
+                var oldRowVersion = person.RowVersion;
+
+                // Create updated person object
+                _logger.LogInformation("Creating updated person object with request: {@Request}, UpdatedBy: {UpdatedBy}, CorrelationId: {CorrelationId}",
+                   command, command.UpdatedBy, correlationId);
+                var personName = PersonName.Create(
+                   command.FirstName,
+                   command.MiddleName,
+                   command.LastName,
+                   command.Title,
+                   command.Suffix
+                );
+
+                _logger.LogDebug("Updating person name with: {@PersonName}, CorrelationId: {CorrelationId}", personName, correlationId);
+                person.UpdateName(personName, command.UpdatedBy);
+
+                // Update person in repository
+                _logger.LogDebug("Attempting to update person in repository. PersonId: {PersonId}, UpdatedBy: {UpdatedBy}, CorrelationId: {CorrelationId}",
+                    personId, command.UpdatedBy, correlationId);
+
+                var (success, newRowVersion) = await _personRepository.UpdateAsync(person, correlationId, cancellationToken);
+                if (!success || newRowVersion == null)
+                {
+                    _logger.LogWarning("Person update failed. PersonId: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
+                    return OperationResult<UpdatedResponseDto>.Failure(new Error(
+                        ErrorCode.ConcurrencyConflict, "CONCURRENCY_CONFLICT",
+                        $"Failed to update person with ID {personId} due to concurrency conflict or record not found.",
+                        correlationId));
+                }
+
+                var response = PersonMappers.ToUpdatedResponseDto(oldRowVersion, newRowVersion, success);
+
+                _logger.LogInformation("Successfully executed {OperationName}. CorrelationId: {CorrelationId}", operationName, correlationId);
+                return OperationResult<UpdatedResponseDto>.Success(response);
+
             }
-
-            return result;
-
+            catch (OperationCanceledException ex)
+            {
+                return _errorHandlingService.HandleCancelationToken<UpdatedResponseDto>(ex, correlationId);
+            }
+            catch (DomainModelInvalidException ex)
+            {
+                return _errorHandlingService.HandleDomainValidationException<UpdatedResponseDto>(ex, correlationId);
+            }
+            catch (Exception ex)
+            {
+                return _errorHandlingService.HandleException<UpdatedResponseDto>(ex, correlationId);
+            }
         }
     }
 

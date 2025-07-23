@@ -52,7 +52,7 @@ namespace UASystem.Api.Controllers.V1.Persons
             }
 
             _logger.LogInformation("Person created successfully with ID: {PersonId}, CorrelationId: {CorrelationId}", result.Data?.PersonId, correlationId);
-            return CreatedAtRoute("GetPersonById", new { personId = result.Data?.PersonId }, result.Data);
+            return CreatedAtRoute("GetPersonById", new { personId = result.Data?.PersonId }, result);
         }
 
         [HttpGet(ApiRoutes.PersonRoutes.ById, Name = "GetPersonById")]
@@ -84,7 +84,7 @@ namespace UASystem.Api.Controllers.V1.Persons
             }
 
             _logger.LogInformation("Person retrieved successfully with ID: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
-            return Ok(result.Data);
+            return Ok(result);
         }
 
         [HttpPut(ApiRoutes.PersonRoutes.ById, Name = "UpdatePerson")]
@@ -92,16 +92,19 @@ namespace UASystem.Api.Controllers.V1.Persons
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        //TODO: validateGuid and model
-        public async Task<IActionResult> UpdatePersonAsync([FromRoute] string personId, [FromBody] UpdatePersonDto request, CancellationToken cancellationToken)
+        [ValidateGuid("personId")]
+        [ValidateModel]
+        public async Task<IActionResult> UpdatePersonAsync([FromRoute] string personId, [FromBody] UpdatePersonDto dto, CancellationToken cancellationToken)
         {
             var correlationId = HttpContext.Items["CorrelationId"]?.ToString() ?? Guid.NewGuid().ToString();
             using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId } });
             _logger.LogRequest(HttpContext.Request.Method, HttpContext.Request.Path, correlationId);
             _logger.LogInformation("Updating person with ID: {PersonId}, Request: {@Request}, CorrelationId: {CorrelationId}",
-                personId, request, correlationId);
+                personId, dto, correlationId);
             var updatedBy = "be5a79ea-5765-f011-adb3-94c691b4234b"; // Replace with actual user ID from context or authentication
-            var result = await _personService.UpdatePersonAsync(Guid.Parse(personId), request, Guid.Parse(updatedBy), correlationId, cancellationToken);
+
+            var command = PersonFactory.CreateUpdatePersonCommandFromDto(Guid.Parse(personId), dto, Guid.Parse(updatedBy), correlationId);
+            var result = await _personService.UpdatePersonAsync(command, cancellationToken);
             if (!result.IsSuccess)
             {
                 _logger.LogError(null, "Failed to update person. Errors: {Errors}, CorrelationId: {CorrelationId}",
@@ -109,7 +112,7 @@ namespace UASystem.Api.Controllers.V1.Persons
                 return HandleResult(result, correlationId);
             }
             _logger.LogInformation("Person updated successfully with ID: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
-            return Ok(result.Data);
+            return Ok(result);
         }
     }
 }

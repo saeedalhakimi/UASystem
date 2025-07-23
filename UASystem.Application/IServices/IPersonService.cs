@@ -15,6 +15,6 @@ namespace UASystem.Api.Application.IServices
     {
         Task<OperationResult<CreatedResponseDto>> CreatePersonAsync(CreatePersonCommand command, CancellationToken cancellationToken);
         Task<OperationResult<PersonResponseDto>> GetPersonByIdAsync(GetPersonByIdQuery request, CancellationToken cancellationToken);
-        Task<OperationResult<UpdatedResponseDto>> UpdatePersonAsync(Guid personId, UpdatePersonDto request, Guid updatedBy, string? correlationId, CancellationToken cancellationToken);
+        Task<OperationResult<UpdatedResponseDto>> UpdatePersonAsync(UpdatePersonCommand command, CancellationToken cancellationToken);
     }
 }

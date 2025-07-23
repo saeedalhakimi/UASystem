@@ -27,6 +27,21 @@ namespace UASystem.Api.Application.Services.PersonServices
             };
         }
 
+        public static UpdatePersonCommand CreateUpdatePersonCommandFromDto(Guid personId, UpdatePersonDto dto, Guid updatedBy, string correlationId)
+        {
+            return new UpdatePersonCommand
+            {
+                PersonId = personId,
+                Title = StringNormalizer.Normalize(dto.Title),
+                MiddleName = StringNormalizer.Normalize(dto.MiddleName),
+                Suffix = StringNormalizer.Normalize(dto.Suffix),
+                FirstName = dto.FirstName,
+                LastName = dto.LastName,
+                UpdatedBy = updatedBy,
+                CorrelationId = correlationId
+            };
+        }
+
         public static Person CreatePerson(CreatePersonCommand command)
         {
             var personName = PersonName.Create(
