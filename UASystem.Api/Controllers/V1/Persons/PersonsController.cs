@@ -7,6 +7,7 @@ using UASystem.Api.Application.ILoggingService;
 using UASystem.Api.Application.IServices;
 using UASystem.Api.Application.Services.PersonServices;
 using UASystem.Api.Application.Services.PersonServices.Commands;
+using UASystem.Api.Application.Services.PersonServices.Queries;
 using UASystem.Api.Filters;
 using UASystem.Api.Routes;
 
@@ -59,7 +60,7 @@ namespace UASystem.Api.Controllers.V1.Persons
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        //TODO: validateGuid
+        [ValidateGuid("personId")]
         public async Task<IActionResult> GetPersonById([FromRoute] string personId, [FromQuery] bool includeDeleted = false, CancellationToken cancellationToken = default)
         {
             var correlationId = HttpContext.Items["CorrelationId"]?.ToString() ?? Guid.NewGuid().ToString();
@@ -68,7 +69,13 @@ namespace UASystem.Api.Controllers.V1.Persons
             _logger.LogInformation("Retrieving person with ID: {PersonId}, IncludeDeleted: {IncludeDeleted}, CorrelationId: {CorrelationId}",
                 personId, includeDeleted, correlationId);
 
-            var result = await _personService.GetPersonByIdAsync(Guid.Parse(personId), includeDeleted, correlationId, cancellationToken);
+            var query = new GetPersonByIdQuery
+            {
+                PersonId = Guid.Parse(personId),
+                CorrelationId = correlationId,
+                IncludeDeleted = includeDeleted
+            };
+            var result = await _personService.GetPersonByIdAsync(query, cancellationToken);
             if (!result.IsSuccess)
             {
                 _logger.LogError(null, "Failed to retrieve person. Errors: {Errors}, CorrelationId: {CorrelationId}",

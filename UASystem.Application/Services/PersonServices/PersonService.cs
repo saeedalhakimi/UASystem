@@ -15,6 +15,7 @@ using UASystem.Api.Application.IServices;
 using UASystem.Api.Application.Models;
 using UASystem.Api.Application.Services.PersonServices.Commands;
 using UASystem.Api.Application.Services.PersonServices.PersonSubServices;
+using UASystem.Api.Application.Services.PersonServices.Queries;
 using UASystem.Api.Domain.Aggregate;
 using UASystem.Api.Domain.DomainExceptions;
 using UASystem.Api.Domain.Repositories;
@@ -37,88 +38,93 @@ namespace UASystem.Api.Application.Services.PersonServices
             _createPersonService = createPersonService ?? throw new ArgumentNullException(nameof(createPersonService));
         }
 
-        public async Task<OperationResult<CreatedResponseDto>> CreatePersonAsync(CreatePersonCommand request, CancellationToken cancellationToken)
+        public async Task<OperationResult<CreatedResponseDto>> CreatePersonAsync(CreatePersonCommand command, CancellationToken cancellationToken)
         {
             var operationName = nameof(CreatePersonAsync);
-            using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", request.CorrelationId } });
+            using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", command.CorrelationId } });
             _logger.LogInformation("Handling {operationame} for {FirstName} {LastName}. CorrelationId: {CorrelationId}", operationName,
-                request.FirstName, request.LastName, request.CorrelationId);
+                command.FirstName, command.LastName, command.CorrelationId);
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 _logger.LogDebug("Cancellation token checked. Proceeding with service.");
 
-                _logger.LogInformation("Creating new person enitity with request: {@Request}, CreatedBy: {CreatedBy}, CorrelationId: {CorrelationId}", request, request.CreatedBy, request.CorrelationId);
-                var person = _createPersonService.CreatePerson(request);
+                _logger.LogInformation("Creating new person enitity with request: {@Request}, CreatedBy: {CreatedBy}, CorrelationId: {CorrelationId}", command, command.CreatedBy, command.CorrelationId);
+                var person = _createPersonService.CreatePerson(command);
                 //var person = PersonFactory.CreatePerson(request);
 
-                _logger.LogDebug("Attempting to create person in repository. CreatedBy: {CreatedBy}, CorrelationId: {CorrelationId}", request.CreatedBy, request.CorrelationId);
-                var isCreated = await _personRepository.CreateAsync(person, request.CreatedBy, request.CorrelationId, cancellationToken);
+                _logger.LogDebug("Attempting to create person in repository. CreatedBy: {CreatedBy}, CorrelationId: {CorrelationId}", command.CreatedBy, command.CorrelationId);
+                var isCreated = await _personRepository.CreateAsync(person, command.CreatedBy, command.CorrelationId, cancellationToken);
                 if (!isCreated)
                 {
-                    _logger.LogWarning("person creation failed. CorrelationId: {CorrelationId}", request.CorrelationId);
+                    _logger.LogWarning("person creation failed. CorrelationId: {CorrelationId}", command.CorrelationId);
                     return OperationResult<CreatedResponseDto>.Failure(new Error(
                         ErrorCode.ResourceCreationFailed,
                         "RESOURCE_CREATION_FAILED",
                         $"Failed to create person.",
-                        request.CorrelationId));
+                        command.CorrelationId));
                 }
 
                 var response = PersonMappers.ToCreatedResponseDto(person);
-                _logger.LogInformation("Successfully executed {OperationName}. CorrelationId: {CorrelationId}", operationName, request.CorrelationId);
+                _logger.LogInformation("Successfully executed {OperationName}. CorrelationId: {CorrelationId}", operationName, command.CorrelationId);
                 return OperationResult<CreatedResponseDto>.Success(response);
 
             }
             catch (OperationCanceledException ex)
             {
-                return _errorHandlingService.HandleCancelationToken<CreatedResponseDto>(ex, request.CorrelationId);
+                return _errorHandlingService.HandleCancelationToken<CreatedResponseDto>(ex, command.CorrelationId);
             }
             catch (DomainModelInvalidException ex)
             {
-                return _errorHandlingService.HandleDomainValidationException<CreatedResponseDto>(ex, request.CorrelationId);
+                return _errorHandlingService.HandleDomainValidationException<CreatedResponseDto>(ex, command.CorrelationId);
             }
             catch (Exception ex)
             {
-                return _errorHandlingService.HandleException<CreatedResponseDto>(ex, request.CorrelationId);
+                return _errorHandlingService.HandleException<CreatedResponseDto>(ex, command.CorrelationId);
             }
         }
 
-        public async Task<OperationResult<PersonResponseDto>> GetPersonByIdAsync(Guid personId, bool includeDeleted, string? correlationId, CancellationToken cancellationToken)
+        public async Task<OperationResult<PersonResponseDto>> GetPersonByIdAsync(GetPersonByIdQuery query, CancellationToken cancellationToken)
         {
-            var result = await ServiceOperationHandler.ExecuteAsync<PersonResponseDto, PersonService>(
-                async () =>
-                {
-                    _logger.LogInformation("Retrieving person with ID: {PersonId}, IncludeDeleted: {IncludeDeleted}, CorrelationId: {CorrelationId}",
-                        personId, includeDeleted, correlationId);
-
-                    var person = await _personRepository.GetByIdAsync(personId, includeDeleted, correlationId, cancellationToken);
-                    if (person == null)
-                    {
-                        _logger.LogWarning("Person not found. PersonId: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
-                        return null;
-                    }
-
-                    var response = person.ToPersonResponseDto();
-                    _logger.LogInformation("Person retrieved successfully with ID: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
-                    return response;
-                },
-                _logger,
-                _errorHandlingService,
-                "GetPersonByIdAsync",
-                $"Retrieving person with ID: {personId}",
-                correlationId,
-                cancellationToken);
-
-            if (result.IsSuccess && result.Data == null)
+            var personId = query.PersonId;
+            var includeDeleted = query.IncludeDeleted;
+            var correlationId = query.CorrelationId;
+            var operationName = nameof(CreatePersonAsync);
+            using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId } });
+            _logger.LogInformation("Handling {operationame} for person with request:{@Request}.", operationName, query);
+            try
             {
-                return OperationResult<PersonResponseDto>.Failure(new Error(
-                    ErrorCode.ResourceNotFound,
-                    "PERSON_NOT_FOUND",
-                    $"Person with ID {personId} not found.",
-                    correlationId));
-            }
+                cancellationToken.ThrowIfCancellationRequested();
+                _logger.LogDebug("Cancellation token checked. Proceeding with service.");
 
-            return result;
+                _logger.LogInformation("Retrieving person with ID: {PersonId}, IncludeDeleted: {IncludeDeleted}, CorrelationId: {CorrelationId}",
+                        personId, includeDeleted, correlationId);
+                var person = await _personRepository.GetByIdAsync(personId, includeDeleted, correlationId, cancellationToken);
+                if (person == null)
+                {
+                    _logger.LogWarning("Person not found. PersonId: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
+                    return OperationResult<PersonResponseDto>.Failure(new Error(
+                        ErrorCode.ResourceNotFound,"PERSON_NOT_FOUND",
+                        $"Person with ID {personId} not found.",
+                        correlationId));
+                }
+
+                var response = person.ToPersonResponseDto();
+                _logger.LogInformation("Successfully executed {OperationName}. CorrelationId: {CorrelationId}", operationName, correlationId);
+                return OperationResult<PersonResponseDto>.Success(response);
+            }
+            catch (OperationCanceledException ex)
+            {
+                return _errorHandlingService.HandleCancelationToken<PersonResponseDto>(ex, correlationId);
+            }
+            catch (DomainModelInvalidException ex)
+            {
+                return _errorHandlingService.HandleDomainValidationException<PersonResponseDto>(ex, correlationId);
+            }
+            catch (Exception ex)
+            {
+                return _errorHandlingService.HandleException<PersonResponseDto>(ex, correlationId);
+            }
         }
 
         public async Task<OperationResult<UpdatedResponseDto>> UpdatePersonAsync(Guid personId, UpdatePersonDto request, Guid updatedBy, string? correlationId, CancellationToken cancellationToken)

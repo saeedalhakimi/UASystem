@@ -92,11 +92,11 @@ namespace UASystem.Api.Infrastructure.Repositories
         public async Task<Person?> GetByIdAsync(Guid personId, bool includeDeleted, string? correlationId, CancellationToken cancellationToken)
         {
             using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId ?? "N/A" } });
-            _logger.LogInformation("Starting retrieval of person with ID: {PersonId}, IncludeDeleted: {IncludeDeleted}", personId, includeDeleted);
+            _logger.LogInformation("Starting retrieval of person with ID: {PersonId}, IncludeDeleted: {IncludeDeleted} , CorrelationId: {CorrelationId}", personId, includeDeleted, correlationId);
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                _logger.LogDebug("Cancellation token checked. Proceeding with database connection.");
+                _logger.LogDebug("Cancellation token checked. Proceeding with database connection, correlationId: {Correlation}", correlationId);
 
                 await using var connection = await _connectionFactory.CreateConnectionAsync(_connectionString, cancellationToken);
                 using var command = connection.CreateCommand();
@@ -112,7 +112,7 @@ namespace UASystem.Api.Infrastructure.Repositories
                     personId, includeDeleted, correlationId);
 
                 await connection.OpenAsync(cancellationToken);
-                _logger.LogInformation("Database connection established successfully.");
+                _logger.LogInformation("Database connection established successfully, correlationId: {Correlation}", correlationId);
 
                 using var reader = await command.ExecuteReaderAsync(cancellationToken);
                 if (await reader.ReadAsync(cancellationToken))
@@ -134,11 +134,11 @@ namespace UASystem.Api.Infrastructure.Repositories
                         reader.GetBinary(reader.GetOrdinal("RowVersion"))
                         );
 
-                    _logger.LogInformation("Person retrieved successfully. PersonId: {PersonId}", personId);
+                    _logger.LogInformation("Person retrieved successfully. PersonId: {PersonId} , correlationId: {Correlation}", personId,correlationId);
                     return person;
                 }
 
-                _logger.LogWarning("No person found with ID: {PersonId}. IncludeDeleted: {IncludeDeleted}", personId, includeDeleted);
+                _logger.LogWarning("No person found with ID: {PersonId}. IncludeDeleted: {IncludeDeleted} , correlationId: {Correlation}", personId, includeDeleted, correlationId);
                 return null;
             }
             catch (OperationCanceledException ex)
