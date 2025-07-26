@@ -40,6 +40,7 @@ namespace UASystem.Api.Application.Enums
         RateLimitExceeded,
         TimeoutError,
         NotFound,
-        ConcurrencyConflict
+        ConcurrencyConflict,
+        InvalidParameter
     }
 }

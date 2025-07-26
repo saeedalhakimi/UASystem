@@ -88,11 +88,139 @@ namespace UASystem.Api.Infrastructure.Repositories
                 throw;
             }
         }
+        public async Task<bool> DeleteAsync(Person person, string? correlationId, CancellationToken cancellationToken)
+        {
+            var operationName = nameof(DeleteAsync);
+            using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId ?? "N/A" } });
+            _logger.LogInformation("Starting {Operation} in repository to delete person with ID: {PersonId}, IncludeDeleted: {IncludeDeleted} , CorrelationId: {CorrelationId}", operationName, correlationId);
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _logger.LogDebug("Cancellation token checked. Proceeding with database connection, correlationId: {Correlation}", correlationId);
+
+                await using var connection = await _connectionFactory.CreateConnectionAsync(_connectionString, cancellationToken);
+                using var command = connection.CreateCommand();
+                command.CommandText = "SP_DeletePerson";
+                command.CommandType = CommandType.StoredProcedure;
+
+                // Input parameters
+                command.AddParameter("@PersonId", person.PersonId);
+                command.AddParameter("@RowVersion", person.RowVersion);
+                command.AddParameter("@DeletedBy", (object?)person.DeletedBy ?? DBNull.Value);
+                command.AddParameter("@CorrelationId", (object?)correlationId ?? DBNull.Value);
+
+                // Output parameter
+                command.AddOutputParameter("@RowsAffected", SqlDbType.Int);
+                _logger.LogDebug("Parameters added to stored procedure: PersonId={PersonId}, RowVersion={RowVersion}, DeletedBy={DeletedBy}, CorrelationId={CorrelationId}",
+                    person.PersonId, Convert.ToBase64String(person.RowVersion), person.DeletedBy, correlationId);
+                
+                await connection.OpenAsync(cancellationToken);
+                _logger.LogInformation("Database connection established successfully, correlationId: {Correlation}", correlationId);
+
+                await command.ExecuteNonQueryAsync(cancellationToken);
+
+                int rowsAffected = Convert.ToInt32(command.GetParameterValue("@RowsAffected"));
+
+                if (rowsAffected > 0)
+                {
+                    _logger.LogInformation("Person deleted successfully. RowsAffected: {RowsAffected}, PersonId: {PersonId}, correlationId: {Correlation}", rowsAffected, person.PersonId, correlationId);
+                    return true;
+                }
+                _logger.LogWarning("Delete operation completed, but no rows were affected. no person deleted, PersonId: {PersonId}, RowsAffected: {RowsAffected}, correlationId: {Correlation}", person.PersonId, rowsAffected, correlationId);
+                return false;
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogError(ex, "Operation was cancelled during person creation. CorrelationId={CorrelationId}", correlationId);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error while creating person: {FullName}. ExceptionType={ExceptionType}, CorrelationId={CorrelationId}",
+                    $"{person.Name.FirstName} {person.Name.LastName}", ex.GetType().Name, correlationId);
+                throw;
+            }
+        }
+
+        public async Task<IReadOnlyList<Person>> GetAllPersonsAsync(int pageNumber, int pageSize, string? searchTerm, string? sortBy, bool sortDescending, bool includeDeleted, string? correlationId, CancellationToken cancellationToken)
+        {
+            var operationName = nameof(GetAllPersonsAsync);
+            using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId ?? "N/A" } });
+            _logger.LogInformation("Starting {Operation} in repository to retrieve persons with PageNumber: {PageNumber}, PageSize: {PageSize}, SearchTerm: {SearchTerm}, SortBy: {SortBy}, SortDescending: {SortDescending}, IncludeDeleted: {IncludeDeleted}, CorrelationId: {CorrelationId}",
+                operationName, pageNumber, pageSize, searchTerm, sortBy, sortDescending, includeDeleted, correlationId);
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _logger.LogDebug("Cancellation token checked. Proceeding with database connection, CorrelationId: {CorrelationId}", correlationId);
+
+                await using var connection = await _connectionFactory.CreateConnectionAsync(_connectionString, cancellationToken);
+                using var command = connection.CreateCommand();
+                command.CommandText = "SP_GetAllPersons";
+                command.CommandType = CommandType.StoredProcedure;
+
+                command.AddParameter("@PageNumber", pageNumber);
+                command.AddParameter("@PageSize", pageSize);
+                command.AddParameter("@SearchTerm", (object?)searchTerm ?? DBNull.Value);
+                command.AddParameter("@SortBy", (object?)sortBy ?? DBNull.Value);
+                command.AddParameter("@SortDescending", sortDescending);
+                command.AddParameter("@IncludeDeleted", includeDeleted);
+                command.AddParameter("@CorrelationId", (object?)correlationId ?? DBNull.Value);
+
+                _logger.LogDebug("Parameters added to stored procedure: PageNumber={PageNumber}, PageSize={PageSize}, SearchTerm={SearchTerm}, SortBy={SortBy}, SortDescending={SortDescending}, IncludeDeleted={IncludeDeleted}, CorrelationId={CorrelationId}",
+                    pageNumber, pageSize, searchTerm, sortBy, sortDescending, includeDeleted, correlationId);
+
+                await connection.OpenAsync(cancellationToken);
+                _logger.LogInformation("Database connection established successfully, CorrelationId: {CorrelationId}", correlationId);
+
+                var persons = new List<Person>();
+                using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var person = Person.Reconstruct(
+                        reader.GetGuid(reader.GetOrdinal("PersonId")),
+                        reader.GetString(reader.GetOrdinal("FirstName")),
+                        reader.IsDBNull(reader.GetOrdinal("MiddleName")) ? null : reader.GetString(reader.GetOrdinal("MiddleName")),
+                        reader.GetString(reader.GetOrdinal("LastName")),
+                        reader.IsDBNull(reader.GetOrdinal("Title")) ? null : reader.GetString(reader.GetOrdinal("Title")),
+                        reader.IsDBNull(reader.GetOrdinal("Suffix")) ? null : reader.GetString(reader.GetOrdinal("Suffix")),
+                        reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
+                        reader.IsDBNull(reader.GetOrdinal("CreatedBy")) ? null : reader.GetGuid(reader.GetOrdinal("CreatedBy")),
+                        reader.IsDBNull(reader.GetOrdinal("UpdatedAt")) ? null : reader.GetDateTime(reader.GetOrdinal("UpdatedAt")),
+                        reader.IsDBNull(reader.GetOrdinal("UpdatedBy")) ? null : reader.GetGuid(reader.GetOrdinal("UpdatedBy")),
+                        reader.GetBoolean(reader.GetOrdinal("IsDeleted")),
+                        reader.IsDBNull(reader.GetOrdinal("DeletedBy")) ? null : reader.GetGuid(reader.GetOrdinal("DeletedBy")),
+                        reader.IsDBNull(reader.GetOrdinal("DeletedAt")) ? null : reader.GetDateTime(reader.GetOrdinal("DeletedAt")),
+                        reader.GetBinary(reader.GetOrdinal("RowVersion"))
+                    );
+
+                    persons.Add(person);
+                }
+
+                _logger.LogInformation("Persons retrieved successfully. Count: {Count}, TotalCount: {TotalCount}, CorrelationId: {CorrelationId}", persons.Count, correlationId);
+                return persons;
+            }
+            catch (SqlException ex) when (ex.Number is 50010 or 50011)
+            {
+                _logger.LogError(ex, "Validation error retrieving persons. Error: {ErrorMessage}, CorrelationId: {CorrelationId}", ex.Message, correlationId);
+                throw new PersonRepositoryException(ex.Message, ex);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogError(ex, "Operation was cancelled during persons retrieval. CorrelationId: {CorrelationId}", correlationId);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving persons. Type: {ExceptionType}, CorrelationId: {CorrelationId}", ex.GetType().Name, correlationId);
+                throw;
+            }
+        }
 
         public async Task<Person?> GetByIdAsync(Guid personId, bool includeDeleted, string? correlationId, CancellationToken cancellationToken)
         {
+            var operationName = nameof(GetByIdAsync);
             using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId ?? "N/A" } });
-            _logger.LogInformation("Starting retrieval of person with ID: {PersonId}, IncludeDeleted: {IncludeDeleted} , CorrelationId: {CorrelationId}", personId, includeDeleted, correlationId);
+            _logger.LogInformation("Starting {Operation} in repository for retrieval of person with ID: {PersonId}, IncludeDeleted: {IncludeDeleted} , CorrelationId: {CorrelationId}", operationName,personId, includeDeleted, correlationId);
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -166,10 +294,55 @@ namespace UASystem.Api.Infrastructure.Repositories
             }
         }
 
+        public async Task<int> GetCountAsync(bool includeDeleted, string? correlationId, CancellationToken cancellationToken)
+        {
+            var operationName = nameof(GetCountAsync);
+            using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId ?? "N/A" } });
+            _logger.LogInformation("Starting {Operation} in repository for person with IncludeDeleted: {IncludeDeleted}, CorrelationId: {CorrelationId}", operationName, includeDeleted, correlationId);
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _logger.LogDebug("Cancellation token checked. Proceeding with database connection, CorrelationId: {CorrelationId}", correlationId);
+
+                await using var connection = await _connectionFactory.CreateConnectionAsync(_connectionString, cancellationToken);
+                using var command = connection.CreateCommand();
+                command.CommandText = "SP_GetPersonCount";
+                command.CommandType = System.Data.CommandType.StoredProcedure;
+
+                command.AddParameter("@IncludeDeleted", includeDeleted);
+                command.AddParameter("@CorrelationId", (object?)correlationId ?? DBNull.Value);
+
+                _logger.LogDebug("Parameters added to stored procedure: IncludeDeleted={IncludeDeleted}, CorrelationId={CorrelationId}", includeDeleted, correlationId);
+
+                await connection.OpenAsync(cancellationToken);
+                _logger.LogInformation("Database connection established successfully, CorrelationId: {CorrelationId}", correlationId);
+
+                var count = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+
+                _logger.LogInformation("Person count fetched successfully: {Count}, CorrelationId: {CorrelationId}", count, correlationId);
+                return count;
+            }
+            catch (SqlException ex) when (ex.Number is 50010 or 50011)
+            {
+                _logger.LogError(ex, "Validation error retrieving person count. Error: {ErrorMessage}, CorrelationId: {CorrelationId}", ex.Message, correlationId);
+                throw new PersonRepositoryException(ex.Message, ex);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogError(ex, "Operation was cancelled during person count retrieval. CorrelationId: {CorrelationId}", correlationId);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error while fetching person count. ExceptionType: {ExceptionType}, CorrelationId: {CorrelationId}", ex.GetType().Name, correlationId);
+                throw;
+            }
+        }
         public async Task<(bool, byte[]?)> UpdateAsync(Person person, string? correlationId, CancellationToken cancellationToken)
         {
+            var operationName = nameof(UpdateAsync);
             using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId ?? "N/A" } });
-            _logger.LogInformation("Starting update process for person: {FirstName} {LastName}, PersonId: {PersonId}", person.Name.FirstName, person.Name.LastName, person.PersonId);
+            _logger.LogInformation("Starting {Operation} in repository to update person: {FirstName} {LastName}, PersonId: {PersonId}", operationName,person.Name.FirstName, person.Name.LastName, person.PersonId);
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -215,6 +388,11 @@ namespace UASystem.Api.Infrastructure.Repositories
 
                 return (success, newRowVersion);
 
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogError(ex, "Operation was cancelled during person creation. CorrelationId={CorrelationId}", correlationId);
+                throw;
             }
             catch (SqlException ex) when (ex.Number is 50001 or 50002 or 50005 or 50006 or 50007)
             {

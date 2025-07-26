@@ -85,6 +85,120 @@ namespace UASystem.Api.Application.Services.PersonServices
             }
         }
 
+        public async Task<OperationResult<bool>> DeletePersonAsync(DeletePersonCommand command, CancellationToken cancellationToken)
+        {
+            var personId = command.PersonId;
+            var correlationId = command.CorrelationId;
+            var deletedBy = command.DeletedBy;
+            var operationName = nameof(DeletePersonAsync);
+            using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", correlationId } });
+            _logger.LogInformation("Handling {operationame} for person with request:{@Request}.", operationName, command);
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _logger.LogDebug("Cancellation token checked. Proceeding with service.");
+
+                _logger.LogInformation("Retrieving person with ID: {PersonId}, CorrelationId: {CorrelationId}",
+                        personId, correlationId);
+                var person = await _personRepository.GetByIdAsync(personId, false, correlationId, cancellationToken);
+                if (person == null)
+                {
+                    _logger.LogWarning("Person not found. PersonId: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
+                    return OperationResult<bool>.Failure(new Error(
+                        ErrorCode.ResourceNotFound, "PERSON_NOT_FOUND",
+                        $"Person with ID {personId} not found.",
+                        correlationId));
+                }
+
+                person.MarkAsDeleted(deletedBy);
+                _logger.LogDebug("Attempting to delete person in repository. PersonId: {PersonId}, DeletedBy: {DeletedBy}, CorrelationId: {CorrelationId}",
+                    personId, deletedBy, correlationId);
+                var isDeleted = await _personRepository.DeleteAsync(person, correlationId, cancellationToken);
+                if (!isDeleted)
+                {
+                    _logger.LogWarning("Person deletion failed. PersonId: {PersonId}, CorrelationId: {CorrelationId}", personId, correlationId);
+                    return OperationResult<bool>.Failure(new Error(
+                        ErrorCode.ResourceDeletionFailed, "PERSON_DELETION_FAILED",
+                        $"Failed to delete person with ID {personId}.",
+                        correlationId));
+                }
+
+                _logger.LogInformation("Successfully executed {OperationName}. CorrelationId: {CorrelationId}", operationName, correlationId);
+                return OperationResult<bool>.Success(true);
+            }
+            catch (OperationCanceledException ex)
+            {
+                return _errorHandlingService.HandleCancelationToken<bool>(ex, correlationId);
+            }
+            catch (DomainModelInvalidException ex)
+            {
+                return _errorHandlingService.HandleDomainValidationException<bool>(ex, command.CorrelationId);
+            }
+            catch (Exception ex)
+            {
+                return _errorHandlingService.HandleException<bool>(ex, command.CorrelationId);
+            }
+        }
+
+        public async Task<OperationResult<PagedResponse<PersonResponseDto>>> GetAllPersonsAsync(GetAllPersonsQuery query, CancellationToken cancellationToken)
+        {
+            var operationName = nameof(GetAllPersonsAsync);
+            using var scope = _logger.BeginScope(new Dictionary<string, object> { { "CorrelationId", query.CorrelationId } });
+            _logger.LogInformation("Handling {operationName} with query: {@Query}, CorrelationId: {CorrelationId}", operationName, query, query.CorrelationId);
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _logger.LogDebug("Cancellation token checked. Proceeding with service.");
+
+                _logger.LogInformation("Retrieving persons with PageNumber: {PageNumber}, PageSize: {PageSize}, SearchTerm: {SearchTerm}, SortBy: {SortBy}, SortDescending: {SortDescending}, IncludeDeleted: {IncludeDeleted}, CorrelationId: {CorrelationId}",
+                    query.PageNumber, query.PageSize, query.SearchTerm, query.SortBy, query.SortDescending, query.IncludeDeleted, query.CorrelationId);
+
+                var totalCount = await _personRepository.GetCountAsync(query.IncludeDeleted, query.CorrelationId, cancellationToken);
+                if (totalCount == 0)
+                {
+                    _logger.LogInformation("No persons found. Returning empty response.");
+                    return OperationResult<PagedResponse<PersonResponseDto>>.Success(new PagedResponse<PersonResponseDto>(
+                        new List<PersonResponseDto>(),
+                        query.PageNumber,
+                        query.PageSize,
+                        totalCount));
+                }
+
+                var persons = await _personRepository.GetAllPersonsAsync(
+                    query.PageNumber,
+                    query.PageSize,
+                    query.SearchTerm,
+                    query.SortBy,
+                    query.SortDescending,
+                    query.IncludeDeleted,
+                    query.CorrelationId,
+                    cancellationToken);
+
+                var response = new PagedResponse<PersonResponseDto>(
+                    persons.Select(PersonMappers.ToPersonResponseDto).ToList(),
+                    query.PageNumber,
+                    query.PageSize,
+                    totalCount,
+                    persons.Count);
+
+                _logger.LogInformation("Successfully executed {OperationName}. TotalCount: {TotalCount}, CorrelationId: {CorrelationId}", operationName, totalCount, query.CorrelationId);
+                return OperationResult<PagedResponse<PersonResponseDto>>.Success(response);
+            }
+            catch (OperationCanceledException ex)
+            {
+                return _errorHandlingService.HandleCancelationToken<PagedResponse<PersonResponseDto>>(ex, query.CorrelationId);
+            }
+            catch (DomainModelInvalidException ex)
+            {
+                return _errorHandlingService.HandleDomainValidationException<PagedResponse<PersonResponseDto>>(ex, query.CorrelationId);
+            }
+            catch (Exception ex)
+            {
+                return _errorHandlingService.HandleException<PagedResponse<PersonResponseDto>>(ex, query.CorrelationId);
+            }
+        }
+
         public async Task<OperationResult<PersonResponseDto>> GetPersonByIdAsync(GetPersonByIdQuery query, CancellationToken cancellationToken)
         {
             var personId = query.PersonId;

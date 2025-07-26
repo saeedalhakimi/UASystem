@@ -14,7 +14,9 @@ namespace UASystem.Api.Application.IServices
     public interface IPersonService
     {
         Task<OperationResult<CreatedResponseDto>> CreatePersonAsync(CreatePersonCommand command, CancellationToken cancellationToken);
+        Task<OperationResult<PagedResponse<PersonResponseDto>>> GetAllPersonsAsync(GetAllPersonsQuery request, CancellationToken cancellationToken);
         Task<OperationResult<PersonResponseDto>> GetPersonByIdAsync(GetPersonByIdQuery request, CancellationToken cancellationToken);
         Task<OperationResult<UpdatedResponseDto>> UpdatePersonAsync(UpdatePersonCommand command, CancellationToken cancellationToken);
+        Task<OperationResult<bool>> DeletePersonAsync(DeletePersonCommand command, CancellationToken cancellationToken);
     }
 }

@@ -1,0 +1,14 @@
+CREATE TABLE [dbo].[UserRole] (
+    UserId UNIQUEIDENTIFIER NOT NULL,
+    RoleId UNIQUEIDENTIFIER NOT NULL,
+    AssignedAt DATETIME NOT NULL DEFAULT GETDATE(),
+    AssignedBy UNIQUEIDENTIFIER NULL,
+    RemovedBy UNIQUEIDENTIFIER NULL,
+    RemovedAt DATETIME NULL,
+    RowVersion ROWVERSION NOT NULL,
+    CONSTRAINT PK_UserRole PRIMARY KEY NONCLUSTERED (UserId, RoleId),
+    CONSTRAINT FK_UserRole_User FOREIGN KEY (UserId) REFERENCES [dbo].[User](UserId),
+    CONSTRAINT FK_UserRole_Role FOREIGN KEY (RoleId) REFERENCES [dbo].[Role](RoleId),
+    INDEX IX_UserRole_RemovedBy (RemovedBy) WHERE RemovedBy IS NOT NULL,
+    INDEX IX_UserRole_AssignedBy (AssignedBy) WHERE AssignedBy IS NOT NULL
+);
